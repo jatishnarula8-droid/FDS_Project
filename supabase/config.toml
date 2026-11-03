@@ -1,0 +1,10 @@
+# Minimal config for `supabase start` (local dev) and function deployment.
+project_id = "mnit-mess-portal"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+# Biometric machines / the bridge authenticate with x-device-secret, not a Supabase JWT.
+[functions.ingest-punches]
+verify_jwt = false

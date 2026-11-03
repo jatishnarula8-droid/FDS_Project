@@ -1,0 +1,13 @@
+{
+  "name": "mnit-mess-portal",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix web install && npm --prefix bridge install && npm --prefix db-tests install",
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "bridge:mock": "npm --prefix bridge run mock",
+    "bridge:start": "npm --prefix bridge run start",
+    "test:db": "npm --prefix db-tests test",
+    "test:bridge": "npm --prefix bridge test"
+  }
+}
