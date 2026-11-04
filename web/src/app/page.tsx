@@ -5,5 +5,5 @@ export default async function Home() {
   const profile = await getProfile();
   if (!profile) redirect('/login');
   if (!profile.consented_at) redirect('/consent');
-  redirect(profile.role === 'student' ? '/dashboard' : '/manager');
+  redirect(profile.role === 'student' ? '/dashboard' : profile.role === 'admin' ? '/admin' : '/manager/scan');
 }

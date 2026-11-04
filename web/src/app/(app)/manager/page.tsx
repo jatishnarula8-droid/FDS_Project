@@ -19,14 +19,18 @@ export default async function ManagerHome({ searchParams }: { searchParams: { ok
   const today = todayIST();
   const meals = await getMealTypes();
 
-  const [{ data: feed }, { data: events }, { data: opts }, { data: cooked }] = await Promise.all([
+  const { data: ps } = await supabase.rpc('my_plan_status');
+  const tomorrow = (ps as { target_date: string }).target_date;
+  const [{ data: feed }, { data: events }, { data: opts }, { data: cooked }, { data: tmr }] = await Promise.all([
     supabase.from('punches')
       .select('id, punched_at, status, device_user_id, needs_review, profiles(full_name, roll_no), devices(name), meal_types(name)')
       .order('punched_at', { ascending: false }).limit(30),
     supabase.from('meal_events').select('meal_type_id').eq('meal_date', today).limit(10000),
     supabase.from('opt_ins').select('meal_type_id').eq('meal_date', today).eq('will_eat', true).limit(10000),
     supabase.from('meal_cooked').select('meal_type_id, cooked_count').eq('meal_date', today),
+    supabase.from('opt_ins').select('meal_type_id').eq('meal_date', tomorrow).eq('will_eat', true).limit(10000),
   ]);
+  const tmrBy = tallyRows(tmr);
 
   const tally = (rows: { meal_type_id: string }[] | null) => {
     const m = new Map<string, number>();
@@ -66,6 +70,8 @@ export default async function ManagerHome({ searchParams }: { searchParams: { ok
                 ))}
               </TBody>
             </Table>
+            <p className="text-sm"><span className="font-medium">Tomorrow&apos;s plan ({fmtDate(tomorrow)}):</span>{' '}
+              {meals.map((m) => `${m.name} ${tmrBy.get(m.id) ?? 0}`).join(' · ')}</p>
           </CardContent>
         </Card>
 
@@ -76,4 +82,10 @@ export default async function ManagerHome({ searchParams }: { searchParams: { ok
       </div>
     </>
   );
+}
+
+function tallyRows(rows: { meal_type_id: string }[] | null) {
+  const m = new Map<string, number>();
+  for (const r of rows ?? []) m.set(r.meal_type_id, (m.get(r.meal_type_id) ?? 0) + 1);
+  return m;
 }

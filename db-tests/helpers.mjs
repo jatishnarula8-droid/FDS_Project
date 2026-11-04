@@ -52,10 +52,7 @@ export const one = async (db, sql, params) => (await q(db, sql, params))[0];
 export async function fixture(db) {
   await db.exec(`
     insert into semesters (name, starts_on, ends_on, is_active) values ('T', current_date - 20, current_date + 60, true);
-    insert into meal_types (code, name) values ('breakfast','B'),('lunch','L'),('snacks','S'),('dinner','D');
-    insert into meal_windows (meal_type_id, start_time, end_time)
-      select id, s, e from meal_types t join (values ('breakfast'::meal_code, time '07:30', time '09:30'),
-        ('lunch', time '12:00', time '14:30'), ('snacks', time '17:00', time '18:30'), ('dinner', time '19:30', time '21:30')) w(c,s,e) on w.c = t.code;
+    -- meal types and windows come from migration 0007
     insert into meal_rates (semester_id, meal_type_id, rate_paise)
       select (select id from semesters), id, case code when 'lunch' then 6500 when 'dinner' then 6500 when 'breakfast' then 3000 else 2000 end from meal_types;
     insert into devices (name, device_serial) values ('Test Dev', 'DEV1');

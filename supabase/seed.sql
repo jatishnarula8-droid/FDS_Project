@@ -7,7 +7,8 @@ select setseed(0.42);
 
 -- ───────── meal types, windows (PLACEHOLDERS — admin must confirm) ─────────
 insert into meal_types (code, name) values
-  ('breakfast', 'Breakfast'), ('lunch', 'Lunch'), ('snacks', 'Snacks'), ('dinner', 'Dinner');
+  ('breakfast', 'Breakfast'), ('lunch', 'Lunch'), ('snacks', 'Snacks'), ('dinner', 'Dinner')
+on conflict (code) do nothing; -- migration 0007 already creates these
 
 insert into meal_windows (meal_type_id, start_time, end_time, is_placeholder)
 select id, s, e, true from meal_types t join (values
@@ -15,7 +16,8 @@ select id, s, e, true from meal_types t join (values
   ('lunch',               time '12:00', time '14:30'),
   ('snacks',              time '17:00', time '18:30'),
   ('dinner',              time '19:30', time '21:30')
-) w(code, s, e) on w.code = t.code;
+) w(code, s, e) on w.code = t.code
+on conflict (meal_type_id) do nothing;
 
 -- ───────── demo semester + PLACEHOLDER per-meal rates (paise) ─────────
 insert into semesters (name, starts_on, ends_on, is_active)
@@ -43,7 +45,8 @@ insert into _names values
  (26,'Yash Tiwari'),(27,'Shreya Bhatt'),(28,'Manav Goyal'),(29,'Neha Kulkarni'),(30,'Dev Rajput');
 
 create temp table _users (email text, full_name text, roll_no text, hostel text, room_no text, id uuid default gen_random_uuid());
-insert into _users (email, full_name) values ('admin@mnit.ac.in', 'Demo Admin'), ('manager@mnit.ac.in', 'Demo Mess Manager');
+-- No demo admin on purpose: the only admin is the address in app_settings.admin_email (see migration 0005).
+insert into _users (email, full_name) values ('manager@mnit.ac.in', 'Demo Mess Manager');
 insert into _users (email, full_name, roll_no, hostel, room_no)
 select format('student%s@mnit.ac.in', lpad(n::text, 2, '0')), name, '2023UCP' || (1000 + n),
        (array['Hostel A','Hostel B','Hostel C'])[1 + n % 3], (100 + n)::text
@@ -55,7 +58,8 @@ insert into auth.users (instance_id, id, aud, role, email, encrypted_password, e
 select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated', email,
        extensions.crypt('demo1234', extensions.gen_salt('bf')), now(),
        '{"provider":"email","providers":["email"]}'::jsonb,
-       jsonb_build_object('full_name', full_name, 'roll_no', roll_no, 'hostel', hostel, 'room_no', room_no),
+       jsonb_build_object('full_name', full_name, 'roll_no', roll_no, 'hostel', hostel, 'room_no', room_no,
+                          'phone', case when roll_no is null then null else '9876' || lpad(right(roll_no, 4), 6, '0') end),
        now(), now(), '', '', '', ''
 from _users;
 
@@ -63,7 +67,6 @@ insert into auth.identities (id, user_id, provider_id, identity_data, provider, 
 select gen_random_uuid(), id, id::text, jsonb_build_object('sub', id::text, 'email', email), 'email', now(), now(), now()
 from _users;
 
-update profiles set role = 'admin',   consented_at = now() where id = (select id from _users where email = 'admin@mnit.ac.in');
 update profiles set role = 'manager', consented_at = now() where id = (select id from _users where email = 'manager@mnit.ac.in');
 update profiles set consented_at = now(), diet_type = (array['veg','non_veg','veg','egg']::diet_type[])[1 + (random()*3)::int]
  where role = 'student';
@@ -117,6 +120,16 @@ where random() < 0.35;
 insert into opt_ins (student_id, meal_date, meal_type_id, will_eat)
 select p.id, current_date, t.id, random() < 0.8
 from profiles p cross join meal_types t where p.role = 'student' and random() < 0.7;
+
+-- Demo: students 01-03 planned ALL of today's meals, so a QR pass exists to scan right away.
+insert into opt_ins (student_id, meal_date, meal_type_id, will_eat)
+select p.id, current_date, t.id, true from profiles p cross join meal_types t
+where p.roll_no in ('2023UCP1001', '2023UCP1002', '2023UCP1003')
+on conflict (student_id, meal_date, meal_type_id) do update set will_eat = true;
+-- plus every other opted-in student for today
+insert into meal_passes (student_id, meal_date, meal_type_id)
+select student_id, meal_date, meal_type_id from opt_ins where will_eat and meal_date = current_date
+on conflict do nothing;
 
 insert into meal_cooked (meal_date, meal_type_id, cooked_count)
 select current_date, id, case code when 'breakfast' then 15 when 'lunch' then 28 when 'snacks' then 18 else 27 end

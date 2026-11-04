@@ -98,3 +98,12 @@ test('sign-up is restricted to the configured email domain', async () => {
   await assert.rejects(db.exec(`insert into auth.users (id, email) values (gen_random_uuid(), 'x@gmail.com')`), /restricted/);
   await db.exec(`insert into auth.users (id, email) values (gen_random_uuid(), 'ok@mnit.ac.in')`);
 });
+
+test('only the configured admin email can sign up off-domain, and is admin only once confirmed', async () => {
+  await assert.rejects(db.exec(`insert into auth.users (id, email) values (gen_random_uuid(), 'someone@gmail.com')`), /restricted/);
+  await db.exec(`insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000f1', 'JatishNarula8@gmail.com')`);
+  assert.equal((await q(db, `select role from profiles where id = '00000000-0000-0000-0000-0000000000f1'`))[0].role, 'student', 'unconfirmed -> not admin');
+  await db.exec(`update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000f1'`);
+  assert.equal((await q(db, `select role from profiles where id = '00000000-0000-0000-0000-0000000000f1'`))[0].role, 'admin');
+  assert.equal((await q(db, `select 1 from profiles where role = 'admin' and id <> '00000000-0000-0000-0000-0000000000f1' and id <> '${ADMIN}'`)).length, 0);
+});

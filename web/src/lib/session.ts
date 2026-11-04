@@ -11,7 +11,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   if (!user) return null;
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, roll_no, hostel, room_no, diet_type, role, consented_at')
+    .select('id, full_name, email, phone, roll_no, hostel, room_no, diet_type, role, consented_at')
     .eq('id', user.id)
     .single();
   return (data as Profile | null) ?? null;

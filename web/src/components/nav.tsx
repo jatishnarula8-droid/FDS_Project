@@ -8,17 +8,16 @@ import type { Role } from '@/lib/types';
 
 const LINKS: Record<Role, { href: string; label: string }[]> = {
   student: [
-    { href: '/dashboard', label: 'Wallet' }, { href: '/meals', label: 'Meal log' },
-    { href: '/today', label: 'Today' }, { href: '/disputes', label: 'Disputes' },
+    { href: '/dashboard', label: 'Wallet' }, { href: '/plan', label: 'Plan tomorrow' }, { href: '/today', label: 'Today' },
+    { href: '/meals', label: 'Meal log' }, { href: '/disputes', label: 'Disputes' },
   ],
   manager: [
-    { href: '/manager', label: 'Live' }, { href: '/manager/students', label: 'Students' },
+    { href: '/manager/scan', label: 'Scan QR' }, { href: '/manager', label: 'Live' }, { href: '/manager/students', label: 'Students' },
     { href: '/manager/disputes', label: 'Disputes' }, { href: '/manager/devices', label: 'Devices' },
   ],
   admin: [
-    { href: '/manager', label: 'Live' }, { href: '/manager/students', label: 'Students' },
-    { href: '/manager/disputes', label: 'Disputes' }, { href: '/manager/devices', label: 'Devices' },
-    { href: '/admin', label: 'Setup' }, { href: '/admin/refunds', label: 'Refunds' }, { href: '/admin/audit', label: 'Audit' },
+    { href: '/admin', label: 'Admin panel' }, { href: '/manager/disputes', label: 'Disputes' }, { href: '/manager', label: 'Live' },
+    { href: '/admin/setup', label: 'Setup' }, { href: '/admin/refunds', label: 'Refunds' }, { href: '/admin/audit', label: 'Audit' },
   ],
 };
 

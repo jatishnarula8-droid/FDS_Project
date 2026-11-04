@@ -1,6 +1,6 @@
 # MNIT Mess Portal
 
-Biometric meal tracking + refund ledger for the hostel mess. Students prepay; every valid biometric punch is "a meal eaten" and takes that meal's rate off a refundable balance. At semester end the remaining balance becomes a **proposed refund (pending approval)** that mess administration reviews. The system never moves money.
+Meal planning, QR-based serving and refund ledger for the hostel mess. Students prepay; the day before, they choose which of the 4 meals they will eat and get a **QR pass** per meal; mess staff **scan the pass** to serve, and that meal's rate comes off a refundable balance. (Fingerprint punches from an eSSL machine are an optional second channel into the same ledger.) **Presenting this? See [PRESENTATION.md](PRESENTATION.md).** The admin panel lives at `/admin` (sign in with the admin account): QR scanner, daily scans, and an editable table of students (name, ID, email, phone, money left). At semester end the remaining balance becomes a **proposed refund (pending approval)** that mess administration reviews. The system never moves money.
 
 > A biometric machine records **who punched and when**, not how much food was eaten. "How much a student ate" therefore means **which meals they attended**, counted per meal. No portion data is invented, and no fingerprint/face data ever leaves the machine.
 

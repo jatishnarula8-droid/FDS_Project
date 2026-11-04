@@ -2,7 +2,7 @@ export type Role = 'student' | 'manager' | 'admin';
 export type MealCode = 'breakfast' | 'lunch' | 'snacks' | 'dinner';
 
 export interface Profile {
-  id: string; full_name: string; roll_no: string | null; hostel: string | null; room_no: string | null;
+  id: string; full_name: string; email: string | null; phone: string | null; roll_no: string | null; hostel: string | null; room_no: string | null;
   diet_type: string; role: Role; consented_at: string | null;
 }
 export interface MealType { id: string; code: MealCode; name: string }

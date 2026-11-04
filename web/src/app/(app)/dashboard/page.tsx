@@ -44,6 +44,12 @@ export default async function Dashboard({ searchParams }: { searchParams: { ok?:
     else points.push({ date: day, balance: run / 100 });
   }
 
+  const { data: ps } = await supabase.rpc('my_plan_status');
+  const plan = ps as { target_date: string; cutoff: string; open: boolean };
+  const { count: answeredCount } = await supabase.from('opt_ins').select('*', { count: 'exact', head: true })
+    .eq('student_id', profile.id).eq('meal_date', plan.target_date);
+  const planOpen = plan.open, planned = (answeredCount ?? 0) > 0, planCutoff = plan.cutoff;
+
   const proj = b && sem ? projectRefund({
     balancePaise: b.balance_paise, deductedPaise: b.deducted_paise,
     semesterStart: sem.starts_on, semesterEnd: sem.ends_on, today: todayIST(),
@@ -54,6 +60,11 @@ export default async function Dashboard({ searchParams }: { searchParams: { ok?:
       <PageHeader title={`Hello, ${profile.full_name.split(' ')[0]}`} description={sem ? sem.name : undefined} />
       <div className="mb-4"><Flash ok={searchParams.ok} error={searchParams.error} /></div>
 
+      {planOpen && !planned && (
+        <Link href="/plan" className="mb-4 block rounded-md border border-primary/40 bg-accent p-3 text-sm text-accent-foreground">
+          <strong>Choose tomorrow&apos;s meals</strong> before {planCutoff} today to get your QR passes →
+        </Link>
+      )}
       {!b ? (
         <EmptyState title="No mess fee recorded yet" hint="Once mess administration records your fee for this semester, your wallet will appear here. If you have paid, please contact the mess office." />
       ) : (
@@ -108,8 +119,10 @@ export default async function Dashboard({ searchParams }: { searchParams: { ok?:
       <Card className="mt-4">
         <CardHeader><CardTitle>Your profile</CardTitle></CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <Stat label="Name" value={profile.full_name} />
+            <Stat label="Email" value={profile.email ?? '—'} />
+            <Stat label="Phone" value={profile.phone ?? '—'} />
             <Stat label="Roll number" value={profile.roll_no ?? '—'} />
             <Stat label="Hostel" value={profile.hostel ?? '—'} />
             <Stat label="Room" value={profile.room_no ?? '—'} />

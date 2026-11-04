@@ -1,121 +1,119 @@
-import { requireProfile, getMealTypes } from '@/lib/session';
+import { requireProfile, getActiveSemester } from '@/lib/session';
 import { createClient } from '@/lib/supabase/server';
-import { fmtDate } from '@/lib/time';
+import { formatINR } from '@/lib/format';
+import { fmtDate, fmtTime, todayIST } from '@/lib/time';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Field, Input } from '@/components/ui/form';
+import { Input } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
-import { Flash } from '@/components/ui/states';
-import { activateSemester, createDevice, createSemester, importFees, saveRates, saveWindows } from '@/app/actions/admin';
+import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
+import { EmptyState, Flash } from '@/components/ui/states';
+import { Scanner } from '@/components/scanner';
+import { setMoneyLeft } from '@/app/actions/admin';
 
-export const metadata = { title: 'Setup · MNIT Mess Portal' };
+export const metadata = { title: 'Admin · MNIT Mess Portal' };
 
-export default async function AdminSetup({ searchParams }: { searchParams: { ok?: string; error?: string } }) {
+interface Student { id: string; full_name: string; roll_no: string | null; email: string | null; phone: string | null }
+interface Scan { id: string; eaten_at: string; meal_types: { name: string } | null; profiles: { full_name: string; roll_no: string | null } | null }
+
+/** The admin panel: scan QRs, see today's scans, and edit each student's money left. Admin sign-in required. */
+export default async function AdminHome({ searchParams }: { searchParams: { q?: string; day?: string; ok?: string; error?: string } }) {
   await requireProfile(['admin']);
   const supabase = createClient();
-  const meals = await getMealTypes();
-  const [{ data: sems }, { data: windows }] = await Promise.all([
-    supabase.from('semesters').select('id, name, starts_on, ends_on, is_active').order('starts_on', { ascending: false }),
-    supabase.from('meal_windows').select('id, meal_type_id, start_time, end_time, active, is_placeholder'),
+  const sem = await getActiveSemester();
+  const today = todayIST();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.day ?? '') ? searchParams.day! : today;
+  const q = (searchParams.q ?? '').trim().slice(0, 60).replace(/[%,()]/g, ' ');
+
+  let students = supabase.from('profiles').select('id, full_name, roll_no, email, phone').eq('role', 'student').order('full_name').limit(100);
+  if (q) students = students.or(`full_name.ilike.%${q}%,roll_no.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
+
+  const [{ data: studs }, { data: bal }, { data: scans }] = await Promise.all([
+    students,
+    sem ? supabase.from('v_student_balance').select('student_id, balance_paise').eq('semester_id', sem.id) : Promise.resolve({ data: [] }),
+    supabase.from('meal_events').select('id, eaten_at, meal_types(name), profiles(full_name, roll_no)').eq('source', 'qr').eq('meal_date', day)
+      .order('eaten_at', { ascending: false }).limit(300),
   ]);
-  const active = (sems ?? []).find((s) => s.is_active);
-  const { data: rates } = active ? await supabase.from('meal_rates').select('meal_type_id, rate_paise').eq('semester_id', active.id) : { data: [] };
-  const rateBy = new Map((rates ?? []).map((r) => [r.meal_type_id, r.rate_paise as number]));
-  const winBy = new Map((windows ?? []).map((w) => [w.meal_type_id, w]));
-  const rupees = (p?: number) => (p === undefined ? '' : (p / 100).toFixed(2));
+  const left = new Map((bal ?? []).map((b: { student_id: string; balance_paise: number }) => [b.student_id, b.balance_paise]));
+  const scanRows = (scans ?? []) as unknown as Scan[];
 
   return (
     <>
-      <PageHeader title="Setup" description="Semesters, per-meal rates, meal windows and student fees." />
+      <PageHeader title="Admin panel" description={sem ? `${sem.name} · all amounts in ₹` : 'No active semester: create one under Setup.'} />
       <div className="mb-4"><Flash ok={searchParams.ok} error={searchParams.error} /></div>
-      <div className="grid gap-4 lg:grid-cols-2">
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
         <Card>
-          <CardHeader><CardTitle>Semesters</CardTitle><CardDescription>Only one can be active. Meals are charged against the active semester.</CardDescription></CardHeader>
-          <CardContent className="grid gap-4">
-            <ul className="divide-y text-sm">
-              {(sems ?? []).map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                  <span><span className="font-medium">{s.name}</span> <span className="text-muted-foreground">{fmtDate(s.starts_on)} → {fmtDate(s.ends_on)}</span></span>
-                  {s.is_active ? <Badge variant="success">Active</Badge> : (
-                    <form action={activateSemester}><input type="hidden" name="id" value={s.id} /><Button size="sm" variant="outline" type="submit">Make active</Button></form>)}
-                </li>
-              ))}
-            </ul>
-            <form action={createSemester} className="grid gap-3 sm:grid-cols-3">
-              <Field label="Name" htmlFor="sem_name"><Input id="sem_name" name="name" placeholder="Even Sem 2025-26" required /></Field>
-              <Field label="Starts" htmlFor="starts_on"><Input id="starts_on" name="starts_on" type="date" required /></Field>
-              <Field label="Ends" htmlFor="ends_on"><Input id="ends_on" name="ends_on" type="date" required /></Field>
-              <Button type="submit" variant="secondary" className="sm:col-span-3">Add semester</Button>
-            </form>
-          </CardContent>
+          <CardHeader><CardTitle>Scan QR</CardTitle><CardDescription>Scan a student&apos;s pass to serve the meal and deduct its rate.</CardDescription></CardHeader>
+          <CardContent><Scanner /></CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Per-meal rates (₹)</CardTitle><CardDescription>{active ? `For ${active.name}. Charged each time a student eats that meal.` : 'Create and activate a semester first.'}</CardDescription></CardHeader>
-          <CardContent>
-            {active && (
-              <form action={saveRates} className="grid gap-3 sm:grid-cols-2">
-                <input type="hidden" name="semester_id" value={active.id} />
-                {meals.map((m) => (
-                  <Field key={m.id} label={m.name} htmlFor={`rate_${m.id}`}>
-                    <Input id={`rate_${m.id}`} name={`rate_${m.id}`} inputMode="decimal" defaultValue={rupees(rateBy.get(m.id))} required />
-                  </Field>
-                ))}
-                <Button type="submit" className="sm:col-span-2">Save rates</Button>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>Scans on {fmtDate(day)} <Badge variant="secondary" className="ml-1 align-middle">{scanRows.length}</Badge></CardTitle>
+              <form className="flex items-center gap-2" action="/admin">
+                <Input type="date" name="day" defaultValue={day} max={today} aria-label="Day" className="h-9 w-40" />
+                <input type="hidden" name="q" value={q} />
+                <Button type="submit" size="sm" variant="secondary">Show</Button>
               </form>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {scanRows.length === 0 ? <EmptyState title="No QR scans on this day" /> : (
+              <div className="max-h-[420px] overflow-y-auto">
+                <Table>
+                  <caption className="sr-only">QR scans</caption>
+                  <THead><TR><TH>Time</TH><TH>Student</TH><TH>Meal</TH></TR></THead>
+                  <TBody>{scanRows.map((s) => (
+                    <TR key={s.id}><TD className="whitespace-nowrap">{fmtTime(s.eaten_at)}</TD>
+                      <TD>{s.profiles?.full_name} <span className="text-xs text-muted-foreground">{s.profiles?.roll_no}</span></TD><TD>{s.meal_types?.name}</TD></TR>))}</TBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Meal windows</CardTitle><CardDescription>Times are Asia/Kolkata. A punch counts toward the meal whose window contains it. <Badge variant="warning">placeholder</Badge> means not yet confirmed.</CardDescription></CardHeader>
-          <CardContent>
-            <form action={saveWindows} className="grid gap-3">
-              {meals.map((m) => {
-                const w = winBy.get(m.id);
-                if (!w) return null;
-                return (
-                  <fieldset key={m.id} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 sm:grid-cols-[100px_1fr_1fr_auto]">
-                    <legend className="sr-only">{m.name}</legend>
-                    <span className="col-span-3 flex items-center gap-2 text-sm font-medium sm:col-span-1">{m.name}{w.is_placeholder && <Badge variant="warning">placeholder</Badge>}</span>
-                    <Field label="Start" htmlFor={`start_${w.id}`}><Input id={`start_${w.id}`} name={`start_${w.id}`} type="time" defaultValue={String(w.start_time).slice(0, 5)} required /></Field>
-                    <Field label="End" htmlFor={`end_${w.id}`}><Input id={`end_${w.id}`} name={`end_${w.id}`} type="time" defaultValue={String(w.end_time).slice(0, 5)} required /></Field>
-                    <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" name={`active_${w.id}`} defaultChecked={w.active} className="h-4 w-4" />Active</label>
-                  </fieldset>
-                );
-              })}
-              <Button type="submit">Save windows</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Import student fees (CSV)</CardTitle><CardDescription>Columns: <code>roll_no,amount_paid</code> (rupees). Students must have signed up already. Re-importing corrects amounts via a ledger adjustment.</CardDescription></CardHeader>
-          <CardContent>
-            {active ? (
-              <form action={importFees} className="grid gap-3" encType="multipart/form-data">
-                <input type="hidden" name="semester_id" value={active.id} />
-                <Field label={`Fee file for ${active.name}`} htmlFor="file"><Input id="file" name="file" type="file" accept=".csv,text/csv" required /></Field>
-                <Button type="submit">Import</Button>
-              </form>
-            ) : <p className="text-sm text-muted-foreground">Activate a semester first.</p>}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Add a biometric machine</CardTitle><CardDescription>The serial number must match what the bridge sends (shown in the machine&apos;s device-info menu).</CardDescription></CardHeader>
-          <CardContent>
-            <form action={createDevice} className="grid gap-3 sm:grid-cols-4">
-              <Field label="Name" htmlFor="d_name"><Input id="d_name" name="name" required /></Field>
-              <Field label="Location" htmlFor="d_loc"><Input id="d_loc" name="location" /></Field>
-              <Field label="Serial" htmlFor="d_serial"><Input id="d_serial" name="device_serial" required /></Field>
-              <Field label="IP address" htmlFor="d_ip"><Input id="d_ip" name="ip_address" placeholder="192.168.1.201" /></Field>
-              <Button type="submit" variant="secondary" className="sm:col-span-4">Add machine</Button>
-            </form>
-          </CardContent>
-        </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Students</CardTitle>
+          <CardDescription>Edit &quot;Money left&quot; and press Save. The change is recorded in the ledger and the audit log; each scanned meal reduces it automatically.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <form className="flex gap-2" role="search" action="/admin">
+            <Input name="q" defaultValue={q} placeholder="Search name, ID, email or phone" aria-label="Search students" className="max-w-sm" />
+            <Button type="submit" variant="secondary">Search</Button>
+          </form>
+          {((studs ?? []) as Student[]).length === 0 ? <EmptyState title="No students found" hint="Students appear here after they sign up." /> : (
+            <Table>
+              <caption className="sr-only">Students</caption>
+              <THead><TR><TH>Name</TH><TH>ID</TH><TH>Email</TH><TH>Phone</TH><TH>Money left (₹)</TH></TR></THead>
+              <TBody>{((studs ?? []) as Student[]).map((s) => {
+                const p = left.get(s.id);
+                return (
+                  <TR key={s.id}>
+                    <TD className="whitespace-nowrap font-medium">{s.full_name}</TD>
+                    <TD className="whitespace-nowrap">{s.roll_no ?? '—'}</TD>
+                    <TD className="text-xs">{s.email}</TD>
+                    <TD className="whitespace-nowrap">{s.phone ?? '—'}</TD>
+                    <TD>
+                      <form action={setMoneyLeft} className="flex items-center gap-1.5">
+                        <input type="hidden" name="student_id" value={s.id} /><input type="hidden" name="q" value={q} />
+                        <Input name="amount" inputMode="decimal" required defaultValue={p === undefined ? '' : (p / 100).toFixed(2)} placeholder="0.00"
+                          aria-label={`Money left for ${s.full_name}`} className="h-9 w-28" />
+                        <Button type="submit" size="sm">Save</Button>
+                        {p !== undefined && <span className="sr-only">{formatINR(p)}</span>}
+                      </form>
+                    </TD>
+                  </TR>
+                );
+              })}</TBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

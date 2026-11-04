@@ -40,6 +40,18 @@ export async function resolveDispute(fd: FormData) {
   done(back, input.decision === 'approve' ? 'Approved and recorded in the ledger.' : 'Rejected.');
 }
 
+export type ScanResult =
+  | { ok: true; student_name: string; roll_no: string | null; meal: string; low_balance: boolean }
+  | { ok: false; error: string };
+
+/** Called by the scanner. Returns a result (never redirects) so the scan screen can show it instantly. */
+export async function redeemPass(token: string): Promise<ScanResult> {
+  const t = String(token ?? '').slice(0, 100);
+  const { data, error } = await createClient().rpc('redeem_pass', { p_token: t });
+  if (error) return { ok: false, error: friendly(error.message) };
+  return data as ScanResult;
+}
+
 export async function setCooked(fd: FormData) {
   const back = '/manager';
   const input = parseForm(z.object({ meal_type_id: uuid, cooked_count: z.coerce.number().int().min(0).max(100000) }), fd, back);

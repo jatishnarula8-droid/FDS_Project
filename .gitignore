@@ -1,10 +1,40 @@
-node_modules/
-.next/
-dist/
+# Secrets: never commit real keys (only the *.example templates)
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Bridge runtime data (durable queue, dead-letter files)
 bridge/data/
-*.log
-.DS_Store
+
+# Supabase CLI local state (holds the linked project ref and temp files)
 supabase/.temp/
+supabase/.branches/
+
+# Logs and package-manager debris
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
+
+# Claude Code local settings
+.claude/settings.local.json

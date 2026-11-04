@@ -8,6 +8,8 @@ You will: create a free Supabase project, load the database, deploy one function
 
 ---
 
+> **If you see "Almost there: connect Supabase" or any Supabase URL error:** the `.env` files still contain placeholders. `web/.env.local`, `bridge/.env` and `supabase/functions/ingest-punches/.env` already exist with placeholder values; replace each `YOUR_...` with the real value (step 1), then restart `npm run dev`.
+
 ## 1. Create the Supabase project and copy your keys
 
 1. At supabase.com click **New project**. Pick a name, a strong database password (save it) and the region nearest to you (e.g. *Mumbai*).
@@ -15,7 +17,7 @@ You will: create a free Supabase project, load the database, deploy one function
    - **Project URL** (looks like `https://abcdxyz.supabase.co`) — the part before `.supabase.co` is your **project ref**.
    - **anon public** key.
    - **service_role** key (secret!). Never put it in a website or commit it.
-3. Create your env files from the examples and paste the values over the `YOUR_...` placeholders:
+3. The env files already exist with placeholders (if you deleted them, recreate from the `.env.example` files). Paste the values over the `YOUR_...` placeholders:
 
    ```bash
    cp web/.env.example web/.env.local      # Windows PowerShell: Copy-Item web\.env.example web\.env.local
@@ -39,23 +41,25 @@ supabase link --project-ref YOUR_PROJECT_REF
 ```bash
 supabase db push
 ```
-This applies `supabase/migrations/0001…0003` (tables, business rules, security policies).
+This applies `supabase/migrations/0001…0006` (tables, business rules, security policies, QR passes and plan-ahead).
 
 Then load the seed. Easiest is the dashboard: **SQL Editor → New query**, paste the whole of `supabase/seed.sql`, **Run** (takes ~20 s; it creates 30 students, 2 machines, 2 weeks of punches). Or with the CLI: `supabase db push --include-seed`.
+
+> Migrations are `0001…0006`. `0005` = single admin, `0006` = phone/email + "set money left".
 
 > **If the seed errors with `extensions.crypt does not exist`:** in the SQL editor run `create extension if not exists pgcrypto with schema extensions;` and re-run.
 > **If it errors that sign-ups are restricted:** the demo emails end in `@mnit.ac.in`; the allowed domain is set in step 4.
 
 ## 4. Authentication
 
-1. **Authentication → Providers →** make sure **Email** is enabled. For a quick demo, under *Authentication → Sign In / Providers → Email* you may turn off "Confirm email" so new accounts can sign in immediately.
+1. **Authentication → Providers →** make sure **Email** is enabled and **"Confirm email" stays ON** (the admin promotion depends on a confirmed email).
 2. **Authentication → URL Configuration:** set *Site URL* to `http://localhost:3000` (your real URL later) and add `http://localhost:3000/auth/callback` to *Redirect URLs*.
 3. **College-domain restriction** is enforced in the database (a trigger on sign-up that checks the email domain). The placeholder is `mnit.ac.in` — **confirm with the institute**, then change it if needed:
    ```sql
    update app_settings set value = 'mnit.ac.in' where key = 'allowed_email_domain';
    -- value '*' switches the check off
    ```
-4. **Create the first admin.** If you loaded the seed, `admin@mnit.ac.in` / `demo1234` already exists. For a real admin: sign up through the website, then run in the SQL editor:
+4. **The admin.** There is exactly one: `jatishnarula8@gmail.com` (stored in `app_settings.admin_email`). Sign up with that address on the website and click the confirmation email; the database then makes it admin automatically (even though it is not a college address). **Keep "Confirm email" turned ON** in Supabase Auth, otherwise the address could be claimed by someone else. To change the admin: `update app_settings set value = 'new@address' where key = 'admin_email';` then re-run the last two statements of migration 0005. Manual alternative:
    ```sql
    update profiles set role = 'admin'
    where id = (select id from auth.users where email = 'YOUR_EMAIL@mnit.ac.in');
@@ -90,11 +94,13 @@ Check these three things:
 
 | Check | How | Expected |
 |---|---|---|
-| **Punch appears live** | Log in as `manager@mnit.ac.in` / `demo1234` → **Live** | New rows pop in without refreshing; statuses *Matched / Duplicate / Unmatched* |
+| **QR flow** | Log in as `student01@mnit.ac.in` → **Today** (QR passes are pre-made by the seed). In another window log in as `manager@mnit.ac.in` → **Scan QR** and scan it (or paste the code) | Green "Serve: Lunch". Student balance drops by the lunch rate. Scanning again says *already used* |
+| **Plan ahead** | Student → **Plan tomorrow** → answer all 4 → Save | QR passes created for tomorrow. After the cutoff (Admin → Setup → *Plan-ahead deadline*, default 18:00 IST) the page locks. Set it to `23:59` for evening demos |
+| **Fingerprint punch appears live** (optional, needs the bridge) | Manager → **Live** | New rows pop in without refreshing; statuses *Matched / Duplicate / Unmatched* |
 | **Balance drops** | Log in as `student01@mnit.ac.in` in a private window → **Wallet** (note the balance), wait for a *Matched* punch for ID 1001, refresh | Balance fell by that meal's rate (e.g. ₹65.00) and the meal shows in **Meal log** |
 | **Repeat = duplicate** | In the feed, a second punch by the same person in the same meal | Marked **Duplicate**, balance unchanged |
 
-Handy logins (password `demo1234`): `admin@mnit.ac.in`, `manager@mnit.ac.in`, `student01@mnit.ac.in` … `student30@mnit.ac.in`. Student 30 has a tiny balance to demo the "balance exhausted" cap.
+Handy logins (password `demo1234`): `manager@mnit.ac.in`, `student01@mnit.ac.in` … `student30@mnit.ac.in`. Student 30 has a tiny balance to demo the "balance exhausted" cap.
 
 You can also run the database and bridge tests without Supabase: `npm run test:db`, `npm run test:bridge`, and the in-process demo `npm --prefix db-tests run e2e`.
 

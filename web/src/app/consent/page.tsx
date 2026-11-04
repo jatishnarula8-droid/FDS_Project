@@ -26,7 +26,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: { er
           <section className="grid gap-3 text-sm">
             <div>
               <h2 className="font-medium">What is stored</h2>
-              <p className="text-muted-foreground">Your name, roll number, hostel and room, the numeric ID your fingerprint machine uses for you, the <strong>time of each punch</strong>, and the mess fee balance derived from them.</p>
+              <p className="text-muted-foreground">Your name, roll number, email, phone number, hostel and room, the numeric ID your fingerprint machine uses for you, the <strong>time of each punch</strong>, and the mess fee balance derived from them.</p>
             </div>
             <div>
               <h2 className="font-medium">What is never stored</h2>
@@ -53,6 +53,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: { er
             <Field label="Roll number" htmlFor="roll_no" hint={profile.roll_no ? 'Set already. Ask the mess office to change it.' : isStudent ? 'You can set this once.' : undefined}>
               <Input id="roll_no" name="roll_no" defaultValue={profile.roll_no ?? ''} readOnly={!!profile.roll_no} required={isStudent && !profile.roll_no} />
             </Field>
+            <Field label="Phone number" htmlFor="phone"><Input id="phone" name="phone" type="tel" inputMode="tel" defaultValue={profile.phone ?? ''} required /></Field>
             <Field label="Hostel" htmlFor="hostel"><Input id="hostel" name="hostel" defaultValue={profile.hostel ?? ''} /></Field>
             <Field label="Room" htmlFor="room_no"><Input id="room_no" name="room_no" defaultValue={profile.room_no ?? ''} /></Field>
             <Field label="Diet" htmlFor="diet_type">

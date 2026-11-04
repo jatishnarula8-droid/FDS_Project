@@ -8,7 +8,7 @@ import { done, fail, friendly, parseForm } from './helpers';
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a valid date');
-const BACK = '/admin';
+const BACK = '/admin/setup';
 
 export async function createSemester(fd: FormData) {
   const i = parseForm(z.object({ name: z.string().trim().min(2).max(80), starts_on: date, ends_on: date }), fd, BACK);
@@ -81,6 +81,25 @@ export async function importFees(fd: FormData) {
   const tail = problems.length ? ` Skipped ${problems.length}: ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? '…' : ''}` : '';
   if (ok === 0 && problems.length) fail(BACK, `Nothing imported.${tail}`);
   done(BACK, `Imported ${ok} fee record(s).${tail}`);
+}
+
+/** Admin sets how much money a student has left. The ledger records the difference (never overwritten). */
+export async function setMoneyLeft(fd: FormData) {
+  const q = String(fd.get('q') ?? '').slice(0, 60);
+  const back = '/admin' + (q ? `?q=${encodeURIComponent(q)}` : '');
+  const i = parseForm(z.object({ student_id: uuid, amount: z.string() }), fd, back);
+  const paise = rupeesToPaise(i.amount);
+  if (paise === null) fail(back, `"${i.amount}" is not a valid rupee amount.`);
+  const { error } = await createClient().rpc('set_money_left', { p_student: i.student_id, p_new_balance_paise: paise });
+  if (error) fail(back, friendly(error.message));
+  done(back, 'Money left updated.');
+}
+
+export async function saveCutoff(fd: FormData) {
+  const i = parseForm(z.object({ cutoff: z.string().regex(/^\d{2}:\d{2}$/, 'Pick a time') }), fd, BACK);
+  const { error } = await createClient().from('app_settings').update({ value: i.cutoff }).eq('key', 'optin_cutoff');
+  if (error) fail(BACK, friendly(error.message));
+  done(BACK, `Students must now choose tomorrow's meals before ${i.cutoff} (IST) today.`);
 }
 
 export async function createDevice(fd: FormData) {
