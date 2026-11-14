@@ -20,6 +20,13 @@ export async function signIn(fd: FormData) {
   redirect('/');
 }
 
+export async function quickSignIn(fd: FormData) {
+  const email = String(fd.get('email') ?? '').trim();
+  const { error } = await createClient().auth.signInWithPassword({ email, password: 'demo1234' });
+  if (error) fail('/login', friendly(error.message));
+  redirect('/');
+}
+
 export async function signUp(fd: FormData) {
   const back = '/login?tab=signup';
   const input = parseForm(creds.extend({

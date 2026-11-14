@@ -30,6 +30,7 @@ const student = await one(db, `select p.id, b.balance_paise from profiles p join
 const bridge = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
   cwd: new URL('../bridge', import.meta.url),
   env: { ...process.env, ADAPTER: 'mock', INGEST_URL: `http://localhost:${port}/ingest`, DEVICE_INGEST_SECRET: SECRET,
+         DEVICES: '[]',
          MOCK_INTERVAL_SECONDS: '0.5', MOCK_MEAL_TIME: process.env.MOCK_MEAL_TIME ?? '12:30', MOCK_FIRST_PIN: '1001', MOCK_LAST_PIN: '1003',
          DATA_DIR: `./data-e2e-${Date.now()}` },
   stdio: ['ignore', 'pipe', 'inherit'],

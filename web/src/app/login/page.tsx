@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/form';
 import { Flash } from '@/components/ui/states';
-import { signIn, signUp } from '@/app/actions/auth';
+import { signIn, signUp, quickSignIn } from '@/app/actions/auth';
 
 export const metadata = { title: 'Sign in · MNIT Mess Portal' };
 
@@ -43,9 +43,26 @@ export default function LoginPage({ searchParams }: { searchParams: { tab?: stri
           )}
           {/* TODO: ERP SSO hook — add a "Sign in with ERP" button here once administrative approval is granted. */}
           {process.env.NEXT_PUBLIC_SHOW_DEMO_HINT === 'true' && (
-            <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-              Demo logins (password <code>demo1234</code>): <code>student01@mnit.ac.in</code>, <code>manager@mnit.ac.in</code>. Admin: <code>jatishnarula8@gmail.com</code>.
-            </p>
+            <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground grid gap-2">
+              <span className="font-semibold text-foreground text-center">Instant 1-Click Login (Demo)</span>
+              <div className="grid grid-cols-3 gap-2">
+                <form action={quickSignIn}>
+                  <input type="hidden" name="email" value="student01@mnit.ac.in" />
+                  <Button type="submit" variant="secondary" size="sm" className="w-full text-xs">🎓 Student</Button>
+                </form>
+                <form action={quickSignIn}>
+                  <input type="hidden" name="email" value="manager@mnit.ac.in" />
+                  <Button type="submit" variant="secondary" size="sm" className="w-full text-xs">🧑‍🍳 Manager</Button>
+                </form>
+                <form action={quickSignIn}>
+                  <input type="hidden" name="email" value="jatishnarula8@gmail.com" />
+                  <Button type="submit" variant="secondary" size="sm" className="w-full text-xs">🛡️ Admin</Button>
+                </form>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground text-center">
+                Or sign in manually with password <code>demo1234</code>.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

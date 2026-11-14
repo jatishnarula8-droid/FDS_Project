@@ -12,10 +12,12 @@ import { rateMeal } from '@/app/actions/student';
 
 export const metadata = { title: 'Today · MNIT Mess Portal' };
 
-export default async function TodayPage({ searchParams }: { searchParams: { ok?: string; error?: string } }) {
+export default async function TodayPage({ searchParams }: { searchParams: { ok?: string; error?: string; day?: string } }) {
   const profile = await requireProfile(['student']);
   const supabase = createClient();
-  const today = todayIST();
+  const realToday = todayIST();
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.day ?? '') ? searchParams.day! : realToday;
+  const isTomorrow = today > realToday;
   const meals = await getMealTypes();
 
   const [{ data: windows }, { data: passes }, { data: eaten }, { data: ratings }] = await Promise.all([
@@ -30,12 +32,29 @@ export default async function TodayPage({ searchParams }: { searchParams: { ok?:
   const rated = new Map((ratings ?? []).map((r) => [r.meal_type_id, r.rating]));
   const live = meals.filter((m) => pass.get(m.id)?.status === 'issued' || pass.get(m.id)?.status === 'redeemed' || ate.has(m.id));
 
+  const [{ data: st }] = await Promise.all([
+    supabase.rpc('my_plan_status'),
+  ]);
+  const tomorrow = (st as { target_date?: string })?.target_date;
+
   return (
     <>
-      <PageHeader title="Today" description={`${fmtDate(today)} · show the QR to the mess staff to get your meal.`} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PageHeader title={isTomorrow ? "Tomorrow's Passes (Preview)" : "Today's Passes"} description={`${fmtDate(today)} · show the QR to the mess staff to get your meal.`} />
+        {tomorrow && (
+          <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 p-1 text-xs">
+            <Link href="/today" className={`rounded-md px-3 py-1.5 font-medium transition ${!isTomorrow ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+              Today
+            </Link>
+            <Link href={`/today?day=${tomorrow}`} className={`rounded-md px-3 py-1.5 font-medium transition ${isTomorrow ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              Tomorrow (Preview)
+            </Link>
+          </div>
+        )}
+      </div>
       <div className="mb-4"><Flash ok={searchParams.ok} error={searchParams.error} /></div>
       {live.length === 0 ? (
-        <EmptyState title="No meals planned for today" hint="You choose a day ahead. Plan tomorrow's meals to get QR passes." />
+        <EmptyState title={isTomorrow ? "No meals chosen for tomorrow" : "No meals planned for today"} hint={isTomorrow ? "Go to 'Plan tomorrow' to choose which meals you will eat." : "You choose a day ahead. Plan tomorrow's meals to get QR passes."} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {live.map((m) => {
